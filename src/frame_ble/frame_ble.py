@@ -238,41 +238,61 @@ class FrameBle:
         """
         await self._transmit(bytearray(b"\x03"), show_me=show_me)
 
-    async def upload_file(self, file: str, file_name="main.lua"):
+    async def upload_file_from_string(self, content: str, frame_file_path="main.lua"):
         """
-        Uploads a file as file_name. If the file exists, it will be overwritten.
-        """
+        Uploads a string as frame_file_path. If the file exists, it will be overwritten.
 
+        Args:
+            content (str): The string content to upload
+            frame_file_path (str): Target file path on the frame
+        """
         await self.send_break_signal()
 
-        if os.path.exists(file):
-            with open(file, "r") as f:
-                file = f.read()
+        # Escape special characters
+        content = (content.replace("\r", "")
+                        .replace("\n", "\\n")
+                        .replace("'", "\\'")
+                        .replace('"', '\\"'))
 
-        file = file.replace("\r", "")
-        file = file.replace("\n", "\\n")
-        file = file.replace("'", "\\'")
-        file = file.replace('"', '\\"')
-
+        # Open the file on the frame
         await self.send_lua(
-            f"f=frame.file.open('{file_name}','w');print(nil)", await_print=True
+            f"f=frame.file.open('{frame_file_path}','w');print(nil)",
+            await_print=True
         )
 
-        index: int = 0
-        chunkSize: int = self.max_lua_payload() - 22
+        # Calculate chunk size accounting for the Lua command overhead
+        chunk_size: int = self.max_lua_payload() - 22
 
-        while index < len(file):
-            if index + chunkSize > len(file):
-                chunkSize = len(file) - index
+        # Upload in chunks
+        for i in range(0, len(content), chunk_size):
+            # Adjust chunk size if we're at the end
+            current_chunk_size = min(chunk_size, len(content) - i)
 
-            # Don't split on an escape character
-            while file[index + chunkSize - 1] == '\\':
-                chunkSize -= 1
+            # Avoid splitting on escape characters
+            while content[i + current_chunk_size - 1] == '\\':
+                current_chunk_size -= 1
 
-            chunk: str = file[index : index + chunkSize]
-
+            chunk: str = content[i:i + current_chunk_size]
             await self.send_lua(f'f:write("{chunk}");print(nil)', await_print=True)
 
-            index += chunkSize
-
+        # Close the file
         await self.send_lua("f:close();print(nil)", await_print=True)
+
+    async def upload_file(self, local_file_path: str, frame_file_path="main.lua"):
+        """
+        Uploads a local file to the frame. If the target file exists, it will be overwritten.
+
+        Args:
+            local_file_path (str): Path to the local file to upload. Must exist.
+            frame_file_path (str): Target file path on the frame
+
+        Raises:
+            FileNotFoundError: If local_file_path doesn't exist
+        """
+        if not os.path.exists(local_file_path):
+            raise FileNotFoundError(f"Local file not found: {local_file_path}")
+
+        with open(local_file_path, "r") as f:
+            content = f.read()
+
+        await self.upload_file_from_string(content, frame_file_path)
