@@ -1,8 +1,8 @@
 """
 Low-level library for Bluetooth LE connection to Brilliant Labs Frame
 """
-__all__ = ["bluetooth"]
+__all__ = ["frame_ble"]
 
-from .bluetooth import Bluetooth
+from .frame_ble import FrameBle
 
 __version__ = "0.1.0"

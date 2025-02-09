@@ -1,17 +1,15 @@
-# My Package
+# frame_ble
 
-A brief description of your package.
+Low-level library for Bluetooth LE connection to Brilliant Labs Frame
 
 ## Installation
 
 ```bash
-pip install my_package
+pip install frame_ble
 ```
 
 ## Usage
 
 ```python
-from my_package import hello_world
-
-print(hello_world())  # Outputs: Hello from my_package!
-
+from frame_ble import FrameBle
+```

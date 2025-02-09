@@ -4,7 +4,7 @@ from bleak import BleakClient, BleakScanner, BleakError
 import os
 
 
-class Bluetooth:
+class FrameBle:
     """
     Frame bluetooth class for managing a connection and transferring data to and
     from the device.
