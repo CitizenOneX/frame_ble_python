@@ -116,8 +116,8 @@ class FrameBle:
                 self._RX_CHARACTERISTIC_UUID,
                 self._notification_handler,
             )
-        except BleakError:
-            raise Exception("Device needs to be re-paired")
+        except BleakError as ble_error:
+            raise Exception(f"Device needs to be re-paired: {ble_error}")
 
         service = self._client.services.get_service(
             self._SERVICE_UUID,
