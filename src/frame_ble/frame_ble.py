@@ -1,7 +1,8 @@
 import asyncio
+import os
 
 from bleak import BleakClient, BleakScanner, BleakError
-import os
+from typing import Final
 
 
 class FrameBle:
@@ -296,3 +297,65 @@ class FrameBle:
             content = f.read()
 
         await self.upload_file_from_string(content, frame_file_path)
+
+    async def send_message(self, msg_code: int, payload: bytes) -> None:
+        """
+        Send a large payload in chunks determined by BLE MTU size.
+
+        Args:
+            f: FrameBle instance for sending data
+            msg_code: Message type identifier (0-255)
+            payload: Data to be sent
+
+        Raises:
+            ValueError: If msg_code is not in range 0-255 or payload size exceeds 65535
+
+        Note:
+            First packet format: [msg_code(1), size_high(1), size_low(1), data(...)]
+            Other packets format: [msg_code(1), data(...)]
+        """
+        # Constants
+        HEADER_SIZE: Final = 3  # msg_code + 2 bytes size
+        SUBSEQUENT_HEADER_SIZE: Final = 1  # just msg_code
+        MAX_TOTAL_SIZE: Final = 65535  # 2^16 - 1, maximum size that fits in 2 bytes
+
+        # Validation
+        if not 0 <= msg_code <= 255:
+            raise ValueError(f"Message code must be 0-255, got {msg_code}")
+
+        total_size = len(payload)
+        if total_size > MAX_TOTAL_SIZE:
+            raise ValueError(f"Payload size {total_size} exceeds maximum {MAX_TOTAL_SIZE} bytes")
+
+        # Calculate maximum chunk sizes
+        max_first_chunk = self.max_data_payload() - HEADER_SIZE
+        max_chunk_size = self.max_data_payload() - SUBSEQUENT_HEADER_SIZE
+
+        # Pre-allocate buffer for maximum sized packets
+        buffer = bytearray(self.max_data_payload())
+
+        # Send first chunk
+        first_chunk_size = min(max_first_chunk, total_size)
+        buffer[0] = msg_code
+        buffer[1] = total_size >> 8
+        buffer[2] = total_size & 0xFF
+        buffer[HEADER_SIZE:HEADER_SIZE + first_chunk_size] = payload[:first_chunk_size]
+        await self.send_data(memoryview(buffer)[:HEADER_SIZE + first_chunk_size])
+        sent_bytes = first_chunk_size
+
+        # Send remaining chunks
+        if sent_bytes < total_size:
+            # Set message code in the reusable buffer
+            buffer[0] = msg_code
+
+            while sent_bytes < total_size:
+                remaining = total_size - sent_bytes
+                chunk_size = min(max_chunk_size, remaining)
+
+                # Copy next chunk into the pre-allocated buffer
+                buffer[SUBSEQUENT_HEADER_SIZE:SUBSEQUENT_HEADER_SIZE + chunk_size] = \
+                    payload[sent_bytes:sent_bytes + chunk_size]
+
+                # Send only the used portion of the buffer
+                await self.send_data(memoryview(buffer)[:SUBSEQUENT_HEADER_SIZE + chunk_size])
+                sent_bytes += chunk_size
