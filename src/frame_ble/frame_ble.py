@@ -22,6 +22,7 @@ class FrameBle:
         self._print_response = bytearray()
         self._data_response = bytearray()
         self._tx_characteristic = None
+        self._rx_characteristic = None
         self._user_data_response_handler = lambda: None
         self._user_disconnect_handler = lambda: None
         self._user_print_response_handler = lambda: None
@@ -44,81 +45,52 @@ class FrameBle:
 
     async def connect(
         self,
-        address=None,
+        name=None,
+        timeout=10,
         print_response_handler=lambda _: None,
         data_response_handler=lambda _: None,
         disconnect_handler=lambda: None,
     ):
         """
-        Connects to the nearest Frame device.
+        Connects to the first Frame device discovered,
+        optionally matching a specified name e.g. "Frame AB",
+        or throws an Exception if a matching Frame is not found within timeout seconds.
 
-        `address` can optionally be provided either as the 2 digit ID shown on
-        Frame, or the device's full address (note that on MacOS, this is a
-        system generated UUID not the devices real MAC address) in order to only
-        connect to that specific device. The value should be a string, for
-        example `"4F"` or `"78D97B6B-244B-AC86-047F-BBF72ADEB1F5"`
+        `name` can optionally be provided as the local name containing the
+        2 digit ID shown on Frame, in order to only connect to that specific device.
+        The value should be a string, for example `"Frame 4F"`
 
         `print_response_handler` and `data_response_handler` can be provided and
         will be called whenever data arrives from the device asynchronously.
 
         `disconnect_handler` can be provided to be called to run
         upon a disconnect.
-
-        returns the device address as a string. On MacOS, this is a unique UUID
-        generated for that specific device. It can be used in the `address`
-        parameter to only reconnect to that specific device.
         """
 
         self._user_disconnect_handler = disconnect_handler
         self._user_print_response_handler = print_response_handler
         self._user_data_response_handler = data_response_handler
 
-        devices = await BleakScanner.discover(3, return_adv=True)
+        # Create a scanner with a filter for our service UUID and optional name
+        device = await BleakScanner.find_device_by_filter(
+            lambda d, _: d.name is not None and (name is None or d.name == name),
+            timeout=timeout,
+            service_uuids=[self._SERVICE_UUID]
+        )
 
-        filtered_list = []
-
-        for d in devices.values():
-            if self._SERVICE_UUID in d[1].service_uuids:
-
-                # Filter only by Brilliant service UUID
-                if address == None:
-                    filtered_list.append(d)
-
-                # Filter by last two digits in the device name
-                elif len(address) == 2 and isinstance(address, str):
-                    if d[0].name[-2] == address:
-                        filtered_list.append(d)
-
-                # Filter by full device address
-                elif isinstance(address, str):
-                    if d[0].address == address:
-                        filtered_list.append(d)
-
-                else:
-                    raise Exception("address should be a 2 digit hex string")
-
-        # Connect to closest device
-        filtered_list.sort(key=lambda x: x[1].rssi, reverse=True)
-        try:
-            device = filtered_list[0][0]
-
-        except IndexError:
-            raise Exception("no devices found")
+        if not device:
+            raise Exception("No matching Frame device found")
 
         self._client = BleakClient(
             device,
             disconnected_callback=self._disconnect_handler,
+            winrt=dict(use_cached_services=False)
         )
 
         try:
             await self._client.connect()
-
-            await self._client.start_notify(
-                self._RX_CHARACTERISTIC_UUID,
-                self._notification_handler,
-            )
         except BleakError as ble_error:
-            raise Exception(f"Device needs to be re-paired: {ble_error}")
+            raise Exception(f"Error connecting: {ble_error}")
 
         service = self._client.services.get_service(
             self._SERVICE_UUID,
@@ -127,6 +99,18 @@ class FrameBle:
         self._tx_characteristic = service.get_characteristic(
             self._TX_CHARACTERISTIC_UUID,
         )
+
+        self._rx_characteristic = service.get_characteristic(
+            self._RX_CHARACTERISTIC_UUID,
+        )
+
+        try:
+            await self._client.start_notify(
+                self._RX_CHARACTERISTIC_UUID,
+                self._notification_handler,
+            )
+        except Exception as ble_error:
+            raise Exception(f"Error subscribing for notifications: {ble_error}")
 
         return device.address
 
@@ -298,14 +282,14 @@ class FrameBle:
 
         await self.upload_file_from_string(content, frame_file_path)
 
-    async def send_message(self, msg_code: int, payload: bytes) -> None:
+    async def send_message(self, msg_code: int, payload: bytes, show_me: False) -> None:
         """
         Send a large payload in chunks determined by BLE MTU size.
 
         Args:
-            f: FrameBle instance for sending data
-            msg_code: Message type identifier (0-255)
-            payload: Data to be sent
+            msg_code (int): Message type identifier (0-255)
+            payload (bytes): Data to be sent
+            show_me (bool): If True, the exact bytes send to the device will be printed
 
         Raises:
             ValueError: If msg_code is not in range 0-255 or payload size exceeds 65535
@@ -340,7 +324,7 @@ class FrameBle:
         buffer[1] = total_size >> 8
         buffer[2] = total_size & 0xFF
         buffer[HEADER_SIZE:HEADER_SIZE + first_chunk_size] = payload[:first_chunk_size]
-        await self.send_data(memoryview(buffer)[:HEADER_SIZE + first_chunk_size])
+        await self.send_data(memoryview(buffer)[:HEADER_SIZE + first_chunk_size], show_me=show_me)
         sent_bytes = first_chunk_size
 
         # Send remaining chunks
@@ -357,5 +341,5 @@ class FrameBle:
                     payload[sent_bytes:sent_bytes + chunk_size]
 
                 # Send only the used portion of the buffer
-                await self.send_data(memoryview(buffer)[:SUBSEQUENT_HEADER_SIZE + chunk_size])
+                await self.send_data(memoryview(buffer)[:SUBSEQUENT_HEADER_SIZE + chunk_size], show_me=show_me)
                 sent_bytes += chunk_size
