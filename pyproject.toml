@@ -27,5 +27,5 @@ include = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/CitizenOneX/frame_ble"
-"Bug Tracker" = "https://github.com/CitizenOneX/frame_ble/issues"
+"Homepage" = "https://github.com/CitizenOneX/frame_ble_python"
+"Bug Tracker" = "https://github.com/CitizenOneX/frame_ble_python/issues"
