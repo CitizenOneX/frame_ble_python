@@ -1,3 +1,7 @@
+## 1.0.0
+
+* First PyPI packge published
+
 ## 0.1.1
 
 * Updated README.md

@@ -4,9 +4,9 @@ build-backend = "hatchling.build"
 
 [project]
 name = "frame-ble"
-version = "0.1.1"
+version = "1.0.0"
 authors = [
-    { name = "CitizenOne", email = "17427385+CitizenOneX@users.noreply.github.com" },
+    { name = "CitizenOne" },
 ]
 description = "Low-level library for Bluetooth LE connection to Brilliant Labs Frame"
 readme = "README.md"
