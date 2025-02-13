@@ -19,8 +19,8 @@ class FrameBle:
         self._awaiting_print_response = False
         self._awaiting_data_response = False
         self._client = None
-        self._print_response = bytearray()
-        self._data_response = bytearray()
+        self._print_response = asyncio.Queue()
+        self._data_response = asyncio.Queue()
         self._tx_characteristic = None
         self._rx_characteristic = None
         self._user_data_response_handler = lambda: None
@@ -33,15 +33,33 @@ class FrameBle:
 
     async def _notification_handler(self, _, data):
         if data[0] == 1:
+            # Use memoryview to avoid copying
+            data_view = memoryview(data)[1:]
+
             if self._awaiting_data_response:
                 self._awaiting_data_response = False
-                self._data_response = data[1:]
-            self._user_data_response_handler(data[1:])
+                await self._data_response.put(data_view)
+
+            # call the user response handler on all incoming notifications
+            if self._user_data_response_handler is not None:
+                if asyncio.iscoroutinefunction(self._user_data_response_handler):
+                    await self._user_data_response_handler(data_view)
+                else:
+                    self._user_data_response_handler(data_view)
         else:
+            # decode the string data only once
+            decoded = data.decode()
+
             if self._awaiting_print_response:
                 self._awaiting_print_response = False
-                self._print_response = data.decode()
-            self._user_print_response_handler(data.decode())
+                await self._print_response.put(decoded)
+
+            # call the user response handler on all incoming notifications
+            if self._user_print_response_handler is not None:
+                if asyncio.iscoroutinefunction(self._user_print_response_handler):
+                    await self._user_print_response_handler(decoded)
+                else:
+                    self._user_print_response_handler(decoded)
 
     async def connect(
         self,
@@ -155,7 +173,7 @@ class FrameBle:
         if len(data) > self._client.mtu_size - 3:
             raise Exception("payload length is too large")
 
-        await self._client.write_gatt_char(self._tx_characteristic, data)
+        await self._client.write_gatt_char(self._tx_characteristic, data, response=True)
 
     async def send_lua(self, string: str, show_me=False, await_print=False):
         """
@@ -167,19 +185,17 @@ class FrameBle:
 
         If `show_me=True`, the exact bytes send to the device will be printed.
         """
+
+        # set the awaiting status before we transmit
+        self._awaiting_print_response = await_print
+
         await self._transmit(string.encode(), show_me=show_me)
 
         if await_print:
-            self._awaiting_print_response = True
-            countdown = 5000
-
-            while self._awaiting_print_response:
-                await asyncio.sleep(0.001)
-                if countdown == 0:
-                    raise Exception("device didn't respond")
-                countdown -= 1
-
-            return self._print_response
+            try:
+                return await asyncio.wait_for(self._print_response.get(), timeout=5)
+            except asyncio.TimeoutError:
+                raise Exception("device didn't respond")
 
     async def send_data(self, data: bytearray, show_me=False, await_data=False):
         """
@@ -191,19 +207,16 @@ class FrameBle:
 
         If `show_me=True`, the exact bytes send to the device will be printed.
         """
+        # set the awaiting status before we transmit
+        self._awaiting_data_response = await_data
+
         await self._transmit(bytearray(b"\x01") + data, show_me=show_me)
 
         if await_data:
-            self._awaiting_data_response = True
-            countdown = 5000
-
-            while self._awaiting_data_response:
-                await asyncio.sleep(0.001)
-                if countdown == 0:
-                    raise Exception("device didn't respond")
-                countdown -= 1
-
-            return self._data_response
+            try:
+                return await asyncio.wait_for(self._data_response.get(), timeout=5)
+            except asyncio.TimeoutError:
+                raise Exception("device didn't respond")
 
     async def send_reset_signal(self, show_me=False):
         """
@@ -231,8 +244,6 @@ class FrameBle:
             content (str): The string content to upload
             frame_file_path (str): Target file path on the frame
         """
-        await self.send_break_signal()
-
         # Escape special characters
         content = (content.replace("\r", "")
                         .replace("\n", "\\n")
@@ -241,7 +252,7 @@ class FrameBle:
 
         # Open the file on the frame
         await self.send_lua(
-            f"f=frame.file.open('{frame_file_path}','w');print(nil)",
+            f"f=frame.file.open('{frame_file_path}','w');print(1)",
             await_print=True
         )
 
@@ -258,7 +269,7 @@ class FrameBle:
                 current_chunk_size -= 1
 
             chunk: str = content[i:i + current_chunk_size]
-            await self.send_lua(f'f:write("{chunk}");print(nil)', await_print=True)
+            await self.send_lua(f'f:write("{chunk}");print(1)', await_print=True)
 
         # Close the file
         await self.send_lua("f:close();print(nil)", await_print=True)
@@ -282,7 +293,7 @@ class FrameBle:
 
         await self.upload_file_from_string(content, frame_file_path)
 
-    async def send_message(self, msg_code: int, payload: bytes, show_me: False) -> None:
+    async def send_message(self, msg_code: int, payload: bytes, show_me: bool=False) -> None:
         """
         Send a large payload in chunks determined by BLE MTU size.
 
@@ -324,7 +335,7 @@ class FrameBle:
         buffer[1] = total_size >> 8
         buffer[2] = total_size & 0xFF
         buffer[HEADER_SIZE:HEADER_SIZE + first_chunk_size] = payload[:first_chunk_size]
-        await self.send_data(memoryview(buffer)[:HEADER_SIZE + first_chunk_size], show_me=show_me)
+        await self.send_data(memoryview(buffer)[:HEADER_SIZE + first_chunk_size], show_me=show_me, await_data=True)
         sent_bytes = first_chunk_size
 
         # Send remaining chunks
@@ -341,5 +352,5 @@ class FrameBle:
                     payload[sent_bytes:sent_bytes + chunk_size]
 
                 # Send only the used portion of the buffer
-                await self.send_data(memoryview(buffer)[:SUBSEQUENT_HEADER_SIZE + chunk_size], show_me=show_me)
+                await self.send_data(memoryview(buffer)[:SUBSEQUENT_HEADER_SIZE + chunk_size], show_me=show_me, await_data=True)
                 sent_bytes += chunk_size
