@@ -235,6 +235,8 @@ class FrameBle:
         If `show_me=True`, the exact bytes send to the device will be printed.
         """
         await self._transmit(bytearray(b"\x03"), show_me=show_me)
+        # need to give it a moment after the break before it can handle any requests
+        await asyncio.sleep(0.1)
 
     async def upload_file_from_string(self, content: str, frame_file_path="main.lua"):
         """
