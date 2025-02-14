@@ -248,6 +248,7 @@ class FrameBle:
         """
         # Escape special characters
         content = (content.replace("\r", "")
+                        .replace("\\", "\\\\")
                         .replace("\n", "\\n")
                         .replace("'", "\\'")
                         .replace('"', '\\"'))
