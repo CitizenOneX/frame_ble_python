@@ -250,6 +250,7 @@ class FrameBle:
         content = (content.replace("\r", "")
                         .replace("\\", "\\\\")
                         .replace("\n", "\\n")
+                        .replace("\t", "\\t")
                         .replace("'", "\\'")
                         .replace('"', '\\"'))
 
@@ -263,16 +264,26 @@ class FrameBle:
         chunk_size: int = self.max_lua_payload() - 22
 
         # Upload in chunks
-        for i in range(0, len(content), chunk_size):
-            # Adjust chunk size if we're at the end
+        i = 0
+        while i < len(content):
+            # Calculate initial chunk size
             current_chunk_size = min(chunk_size, len(content) - i)
 
-            # Avoid splitting on escape characters
-            while content[i + current_chunk_size - 1] == '\\':
-                current_chunk_size -= 1
+            # Check for escape sequences at the chunk boundary
+            if current_chunk_size < len(content) - i:
+                # Look for the last non-escaped backslash in the chunk
+                pos = i + current_chunk_size - 1
+                while pos > i:
+                    # Check if we're in the middle of an escape sequence
+                    if content[pos] == '\\' and (pos == i or content[pos-1] != '\\'):
+                        # If we find an unescaped backslash, adjust the chunk size
+                        current_chunk_size = pos - i
+                        break
+                    pos -= 1
 
             chunk: str = content[i:i + current_chunk_size]
             await self.send_lua(f'f:write("{chunk}");print(1)', await_print=True)
+            i += current_chunk_size
 
         # Close the file
         await self.send_lua("f:close();print(nil)", await_print=True)
