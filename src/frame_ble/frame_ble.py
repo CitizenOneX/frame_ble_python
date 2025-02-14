@@ -107,6 +107,9 @@ class FrameBle:
 
         try:
             await self._client.connect()
+            # Workaround to acquire MTU size because Bleak doesn't do it automatically when using BlueZ backend
+            if self._client._backend.__class__.__name__ == "BleakClientBlueZDBus":
+                await self._client._backend._acquire_mtu()
         except BleakError as ble_error:
             raise Exception(f"Error connecting: {ble_error}")
 
