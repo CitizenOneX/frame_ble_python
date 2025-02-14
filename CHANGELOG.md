@@ -1,3 +1,7 @@
+## 1.0.1
+
+* Fixed missing escape sequence for bare backslashes in uploaded files
+
 ## 1.0.0
 
 * First PyPI packge published
