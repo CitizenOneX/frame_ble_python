@@ -1,3 +1,8 @@
+## 1.0.4
+
+* Allow calls to frame.disconnect() even when connect() did not succeed (e.g. in a finally block)
+* Added small delays (200ms) after break signal and reset signal to wait for Frame to be ready
+
 ## 1.0.3
 
 * Added workaround for BlueZ backend for Bleak on Linux to force MTU negotiation
