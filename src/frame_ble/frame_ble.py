@@ -139,7 +139,8 @@ class FrameBle:
         """
         Disconnects from the device.
         """
-        await self._client.disconnect()
+        if (self._client is not None):
+            await self._client.disconnect()
         self._disconnect_handler(None)
 
     def is_connected(self):
@@ -229,6 +230,8 @@ class FrameBle:
         If `show_me=True`, the exact bytes send to the device will be printed.
         """
         await self._transmit(bytearray(b"\x04"), show_me=show_me)
+        # need to give it a moment after the Lua VM reset before it can handle any requests
+        await asyncio.sleep(0.2)
 
     async def send_break_signal(self, show_me=False):
         """
@@ -239,7 +242,7 @@ class FrameBle:
         """
         await self._transmit(bytearray(b"\x03"), show_me=show_me)
         # need to give it a moment after the break before it can handle any requests
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.2)
 
     async def upload_file_from_string(self, content: str, frame_file_path="main.lua"):
         """
