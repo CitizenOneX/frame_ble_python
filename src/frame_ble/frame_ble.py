@@ -148,7 +148,7 @@ class FrameBle:
         Returns `True` if the device is connected. `False` otherwise.
         """
         try:
-            return self._client.is_connected
+            return (self._client is not None) and self._client.is_connected
         except AttributeError:
             return False
 
