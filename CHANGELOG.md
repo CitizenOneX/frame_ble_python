@@ -1,3 +1,7 @@
+## 1.0.5
+
+* Allowed calls to frame.is_connected() to return False without error even if Frame was never connected
+
 ## 1.0.4
 
 * Allow calls to frame.disconnect() even when connect() did not succeed (e.g. in a finally block)
