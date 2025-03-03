@@ -1,3 +1,7 @@
+## 1.1.0
+
+* Corrected `pyproject.toml` to include existing `bleak` dependency
+
 ## 1.0.5
 
 * Allowed calls to frame.is_connected() to return False without error even if Frame was never connected
