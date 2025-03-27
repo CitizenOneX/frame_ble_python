@@ -1,5 +1,11 @@
 [build-system]
-requires = ["hatchling"]
+requires = [
+    "hatchling",
+    "setuptools",
+    "wheel",
+    "sphinx>=7.0.0",
+    "sphinx-rtd-theme>=2.0.0",
+]
 build-backend = "hatchling.build"
 
 [project]
