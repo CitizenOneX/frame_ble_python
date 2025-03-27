@@ -37,5 +37,6 @@ include = [
 
 [project.urls]
 "Homepage" = "https://github.com/CitizenOneX/frame_ble_python"
+"Documentation" = "https://frame-ble-python.readthedocs.io/en/latest/index.html"
 "Bug Tracker" = "https://github.com/CitizenOneX/frame_ble_python/issues"
 "Changelog" = "https://github.com/CitizenOneX/frame_ble_python/blob/main/CHANGELOG.md"
