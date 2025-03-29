@@ -1,5 +1,5 @@
 """
-Low-level library for Bluetooth LE connection to Brilliant Labs Frame
+Low-level library for Bluetooth LE connection to Brilliant Labs Frame (https://brilliant.xyz/)
 """
 __all__ = ["frame_ble"]
 
