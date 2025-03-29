@@ -1,15 +1,13 @@
-.. frame_ble_python documentation master file, created by
-   sphinx-quickstart on Thu Mar 27 22:40:46 2025.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+frame-ble
+=========
 
-frame_ble_python documentation
-==============================
+Low-level library for Bluetooth LE connection to `Brilliant Labs Frame <https://brilliant.xyz/>`_.
 
-Low-level library for Bluetooth LE connection to Brilliant Labs Frame
+`Package frame-ble on PyPI. <https://pypi.org/project/frame-ble/>`_
+
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :caption: Contents:
 
    api

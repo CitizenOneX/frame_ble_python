@@ -7,8 +7,8 @@ from typing import Final
 
 class FrameBle:
     """
-    Frame bluetooth class for managing a connection and transferring data to and
-    from the device.
+    Class for managing a connection and transferring data to and
+    from the Brilliant Labs Frame device over Bluetooth LE using the Bleak library.
     """
 
     _SERVICE_UUID = "7a230001-5475-a6a4-654c-8431f6ad49c4"
