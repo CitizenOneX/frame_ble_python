@@ -35,9 +35,6 @@ exclude_patterns = []
 
 html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
-html_css_files = [
-    'css/rtd_dark.css',
-]
 
 intersphinx_mapping = {'python': ('https://docs.python.org/3', None)}
 autodoc_member_order = 'bysource' # Show members in the order they appear in the source code
